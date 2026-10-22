@@ -1,0 +1,156 @@
+[
+  {
+    "file": "cats/cat_pink.png",
+    "width": 256,
+    "height": 256,
+    "alpha": true,
+    "opaque": false
+  },
+  {
+    "file": "cats/cat_yellow.png",
+    "width": 256,
+    "height": 256,
+    "alpha": true,
+    "opaque": false
+  },
+  {
+    "file": "cats/cat_mint.png",
+    "width": 256,
+    "height": 256,
+    "alpha": true,
+    "opaque": false
+  },
+  {
+    "file": "cats/cat_taupe.png",
+    "width": 256,
+    "height": 256,
+    "alpha": true,
+    "opaque": false
+  },
+  {
+    "file": "cats/cat_ivory.png",
+    "width": 256,
+    "height": 256,
+    "alpha": true,
+    "opaque": false
+  },
+  {
+    "file": "cats/cat_lavender.png",
+    "width": 256,
+    "height": 256,
+    "alpha": true,
+    "opaque": false
+  },
+  {
+    "file": "cats/cat_blue.png",
+    "width": 256,
+    "height": 256,
+    "alpha": true,
+    "opaque": false
+  },
+  {
+    "file": "cats/cat_peach.png",
+    "width": 256,
+    "height": 256,
+    "alpha": true,
+    "opaque": false
+  },
+  {
+    "file": "ui/title.png",
+    "width": 800,
+    "height": 494,
+    "alpha": true,
+    "opaque": false
+  },
+  {
+    "file": "ui/button_sound.png",
+    "width": 192,
+    "height": 192,
+    "alpha": true,
+    "opaque": false
+  },
+  {
+    "file": "ui/button_restart.png",
+    "width": 192,
+    "height": 192,
+    "alpha": true,
+    "opaque": false
+  },
+  {
+    "file": "ui/panel_blank.png",
+    "width": 480,
+    "height": 206,
+    "alpha": true,
+    "opaque": false
+  },
+  {
+    "file": "ui/icon_fish.png",
+    "width": 192,
+    "height": 137,
+    "alpha": true,
+    "opaque": false
+  },
+  {
+    "file": "ui/icon_clock.png",
+    "width": 192,
+    "height": 192,
+    "alpha": true,
+    "opaque": false
+  },
+  {
+    "file": "ui/progress_track.png",
+    "width": 800,
+    "height": 167,
+    "alpha": true,
+    "opaque": false
+  },
+  {
+    "file": "ui/progress_fill.png",
+    "width": 800,
+    "height": 188,
+    "alpha": true,
+    "opaque": false
+  },
+  {
+    "file": "ui/button_blank.png",
+    "width": 192,
+    "height": 192,
+    "alpha": true,
+    "opaque": false
+  },
+  {
+    "file": "board/frame.png",
+    "width": 1000,
+    "height": 1344,
+    "alpha": true,
+    "opaque": false
+  },
+  {
+    "file": "board/cell_cream.png",
+    "width": 128,
+    "height": 128,
+    "alpha": false,
+    "opaque": true
+  },
+  {
+    "file": "board/cell_sand.png",
+    "width": 128,
+    "height": 128,
+    "alpha": false,
+    "opaque": true
+  },
+  {
+    "file": "background/seaside_1080x1920.png",
+    "width": 1080,
+    "height": 1920,
+    "alpha": false,
+    "opaque": true
+  },
+  {
+    "file": "board/board_10x14.png",
+    "width": 1000,
+    "height": 1344,
+    "alpha": true,
+    "opaque": false
+  }
+]

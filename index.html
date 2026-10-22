@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#8fd6fb">
+<title>냥냥 컬러타일</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
+<style>
+  :root {
+    --ink: #6b4226;
+    --teal: #3bbfc7;
+    --teal-dark: #1f8f98;
+    --cream: #fff7e6;
+    --red: #ff5a6e;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: #bfe9fb; color: var(--ink);
+    font-family: "Jua", "Apple SD Gothic Neo", sans-serif;
+    overflow: hidden; user-select: none; -webkit-user-select: none;
+    touch-action: manipulation;
+  }
+  img { -webkit-user-drag: none; user-select: none; }
+  /* 무대 바깥(PC 양옆, 긴 폰 위아래)은 같은 배경을 흐리게 깐다 */
+  body::before {
+    content: ""; position: fixed; inset: -60px;
+    background: url("assets/background/seaside_1080x1920.png") center / cover;
+    filter: blur(28px) brightness(1.04);
+  }
+
+  /* ---------- 무대: 1080 x 1920 좌표계를 화면에 맞게 통째로 축소/확대 ---------- */
+  #stage {
+    position: absolute; left: 0; top: 0; width: 1080px; height: 1920px;
+    transform-origin: 0 0;
+    background: url("assets/background/seaside_1080x1920.png") 0 0 / 100% 100%;
+    box-shadow: 0 0 60px rgba(0, 40, 60, .25);
+  }
+  #stage > * { position: absolute; }
+
+  #title { left: 332px; top: 38px; height: 262px; pointer-events: none; }
+  .imgbtn {
+    width: 116px; height: 116px; padding: 0; border: 0; background: none; cursor: pointer;
+  }
+  .imgbtn img { width: 100%; height: 100%; display: block; }
+  .imgbtn:active { transform: translateY(5px) scale(.96); }
+  #sound { left: 56px; top: 166px; }
+  #restart { left: 908px; top: 166px; }
+  #sound .mute { position: absolute; inset: 0; width: 100%; height: 100%; display: none; }
+  #sound.off .mute { display: block; }
+  #sound.off img { filter: saturate(.35) brightness(.95); }
+
+  .panel {
+    top: 280px; width: 240px; height: 103px;
+    background: url("assets/ui/panel_blank.png") 0 0 / 100% 100%;
+    display: flex; align-items: center; gap: 10px; padding: 0 24px 6px 22px;
+    font-size: 50px; line-height: 1;
+  }
+  .panel img { height: 62px; flex: none; }
+  .panel span { flex: 1; text-align: center; }
+  #scorePanel { left: 60px; }
+  #timePanel { left: 780px; }
+  #scorePanel img { height: 70px; }
+  #timePanel img { height: 66px; }
+
+  /* 패널 아래 전체 폭. 막대 PNG는 양 끝(둥근 부분)은 그대로 두고 가운데만 늘린다(3분할) */
+  #timebar { left: 60px; top: 388px; width: 960px; height: 80px; }
+  #timebar .track {
+    position: absolute; inset: 0;
+    border-style: solid; border-width: 0 43px;
+    border-image: url("assets/ui/progress_track.png") 0 90 fill / 0 43px stretch;
+  }
+  /* 채움 막대는 찌그러뜨리지 않고 오른쪽을 잘라서 남은 시간을 표시 */
+  #timefill {
+    position: absolute; left: 12px; right: 12px; top: 14px; bottom: 15px;
+    border-style: solid; border-width: 0 26px;
+    border-image: url("assets/ui/progress_fill.png") 0 94 fill / 0 26px stretch;
+    clip-path: inset(0 var(--cut, 0%) 0 0 round 40px);
+  }
+  #timebar.low #timefill { filter: hue-rotate(165deg) saturate(1.4); }
+  #timebar.low { animation: pulse .6s infinite alternate; }
+  @keyframes pulse { to { transform: scale(1.04); } }
+
+  /* ---------- 보드 (board_10x14.png 내부 격자: 시작 80,80 · 칸 84) ---------- */
+  #board {
+    left: 40px; top: 468px; width: 1000px; height: 1344px;
+    background: url("assets/board/board_10x14.png") 0 0 / 100% 100%;
+  }
+  #board.shake { animation: shake .3s; }
+  /* 피버: 보드 둘레가 금빛으로 일렁인다 */
+  #board::after {
+    content: ""; position: absolute; inset: 14px; border-radius: 70px; pointer-events: none;
+    box-shadow: 0 0 50px 18px rgba(255, 214, 64, .9), 0 0 14px 6px #fff; opacity: 0; transition: opacity .2s;
+  }
+  #board.fever::after { opacity: 1; animation: glow .45s infinite alternate; }
+  @keyframes glow { to { box-shadow: 0 0 80px 30px rgba(255, 170, 40, .95), 0 0 20px 8px #fff; } }
+  #fever {
+    left: 0; width: 1080px; top: 476px; text-align: center; pointer-events: none; z-index: 2;
+    font-size: 64px; color: #fff; letter-spacing: 2px;
+    text-shadow: 5px 0 #f08a00, -5px 0 #f08a00, 0 5px #f08a00, 0 -5px #f08a00,
+      4px 4px #f08a00, -4px 4px #f08a00, 4px -4px #f08a00, -4px -4px #f08a00, 0 9px #b35f00;
+    animation: bounce .45s infinite alternate;
+  }
+  #fever[hidden] { display: none; }
+  @keyframes bounce { to { transform: translateY(-8px) scale(1.05); } }
+  @keyframes shake { 20%,60% { transform: translateX(-12px); } 40%,80% { transform: translateX(12px); } }
+  #grid { position: absolute; left: 80px; top: 80px; width: 840px; height: 1176px; touch-action: none; cursor: pointer; }
+  .tile {
+    position: absolute; width: 84px; height: 84px; pointer-events: none;
+    left: calc(84px * var(--x)); top: calc(84px * var(--y));
+    transform: rotate(var(--r));
+  }
+  .tile img { position: absolute; width: 98px; height: 98px; left: -7px; top: -7px; }
+  /* 황금냥: 아이보리 고양이를 금색으로 물들이고 반짝이게 */
+  .tile img.gold {
+    filter: sepia(1) saturate(7) hue-rotate(-18deg) contrast(1.15) drop-shadow(0 0 3px #fff) drop-shadow(0 0 9px #ff9d00);
+    animation: shine .8s infinite alternate;
+  }
+  @keyframes shine { to { filter: sepia(1) saturate(7) hue-rotate(-18deg) contrast(1.15) brightness(1.2) drop-shadow(0 0 5px #fff) drop-shadow(0 0 16px #ffb300); } }
+  .tile .spark { position: absolute; left: -14px; top: -18px; width: 50px; height: 50px; overflow: visible; animation: twinkle .8s infinite alternate; }
+  @keyframes twinkle { to { transform: scale(1.25) rotate(15deg); } }
+  .tile.pop { animation: pop .45s ease-in forwards; }
+  @keyframes pop {
+    0% { transform: rotate(var(--r)) scale(1); }
+    35% { transform: rotate(0) scale(1.25, 1.1); }
+    100% { transform: translateY(-28px) scale(0); opacity: 0; }
+  }
+  .tile.nudge { animation: nudge .3s; }
+  @keyframes nudge { 50% { transform: rotate(calc(var(--r) * -3)) scale(1.1); } }
+
+  #fx { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+  .zap { fill: none; stroke-width: 8; stroke-linecap: round; stroke-dasharray: 2 16; animation: fade .5s forwards; }
+  @keyframes fade { to { opacity: 0; } }
+  .float {
+    position: absolute; transform: translate(-50%, -50%); pointer-events: none;
+    font-size: 38px; white-space: nowrap; color: #fff;
+    text-shadow: 4px 0 var(--teal-dark), -4px 0 var(--teal-dark), 0 4px var(--teal-dark), 0 -4px var(--teal-dark),
+      3px 3px var(--teal-dark), -3px 3px var(--teal-dark), 3px -3px var(--teal-dark), -3px -3px var(--teal-dark);
+    animation: rise .8s ease-out forwards;
+  }
+  .float.miss {
+    font-size: 48px;
+    text-shadow: 4px 0 var(--red), -4px 0 var(--red), 0 4px var(--red), 0 -4px var(--red),
+      3px 3px var(--red), -3px 3px var(--red), 3px -3px var(--red), -3px -3px var(--red);
+  }
+  .float.safe { font-size: 44px; z-index: 3; }
+  .float.safe { text-shadow: 4px 0 #f08a00, -4px 0 #f08a00, 0 4px #f08a00, 0 -4px #f08a00, 3px 3px #f08a00, -3px 3px #f08a00, 3px -3px #f08a00, -3px -3px #f08a00; }
+  @keyframes rise { to { transform: translate(-50%, -150%); opacity: 0; } }
+  .paw {
+    position: absolute; width: 84px; height: 84px; pointer-events: none; padding: 14px;
+    left: calc(84px * var(--x)); top: calc(84px * var(--y));
+    animation: fade .6s forwards;
+  }
+
+  /* ---------- 시작/결과 카드 (화면 기준 크기) ---------- */
+  #overlay {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: rgba(255, 255, 255, .3); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+    padding: 16px; z-index: 10;
+  }
+  #overlay[hidden] { display: none; }
+  .card {
+    width: 100%; max-width: 360px; text-align: center; background: var(--cream);
+    border: 7px solid var(--teal); border-radius: 28px;
+    box-shadow: inset 0 0 0 3px #a9eef0, 0 0 0 3px #fff, 0 14px 30px rgba(0,50,70,.35);
+    padding: 16px 20px 24px;
+  }
+  .card .logo { width: 70%; display: block; margin: 0 auto 2px; }
+  .card h2 { margin: 4px 0 6px; font-size: 32px; font-weight: 400; color: var(--teal-dark); }
+  .card p { margin: 6px 0; font-size: 18px; line-height: 1.4; }
+  .card b { font-weight: 400; color: var(--red); }
+  .card .score { font-size: 42px; margin: 4px 0; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .card .score img { height: 40px; }
+  .card .cats { display: flex; justify-content: center; margin: 4px 0 8px; }
+  .card .cats img { width: 38px; height: 38px; }
+  .btn {
+    font: inherit; font-size: 26px; color: #fff; cursor: pointer; margin-top: 12px;
+    padding: 6px 40px; border-radius: 999px; border: 3px solid #fff;
+    background: linear-gradient(#ffd75e, #ffad1f);
+    box-shadow: 0 4px 0 #d9860a, 0 6px 12px rgba(0,0,0,.2);
+    text-shadow: 0 2px 0 #c47400;
+  }
+  .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #d9860a; }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="paw" viewBox="0 0 100 100" fill="#f0a0b2" opacity=".7">
+    <ellipse cx="50" cy="66" rx="20" ry="17"/><circle cx="24" cy="42" r="9"/><circle cx="40" cy="27" r="9"/>
+    <circle cx="60" cy="27" r="9"/><circle cx="76" cy="42" r="9"/></symbol>
+  <symbol id="spark" viewBox="0 0 50 50">
+    <path d="M25 2 C27 17 33 23 48 25 C33 27 27 33 25 48 C23 33 17 27 2 25 C17 23 23 17 25 2 Z" fill="#fff" stroke="#ffb300" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M41 4 C42 9 44 11 49 12 C44 13 42 15 41 20 C40 15 38 13 33 12 C38 11 40 9 41 4 Z" fill="#fff6c2" stroke="#ffb300" stroke-width="2"/>
+  </symbol>
+</svg>
+
+<div id="stage">
+  <img id="title" src="assets/ui/title.png" alt="냥냥 컬러타일">
+  <button class="imgbtn" id="sound" aria-label="소리 켜기/끄기">
+    <img src="assets/ui/button_sound.png" alt="">
+    <svg class="mute" viewBox="0 0 100 100"><path d="M24 24 L76 76" stroke="#fff" stroke-width="11" stroke-linecap="round"/><path d="M24 24 L76 76" stroke="#ff5a6e" stroke-width="6" stroke-linecap="round"/></svg>
+  </button>
+  <button class="imgbtn" id="restart" aria-label="다시 시작"><img src="assets/ui/button_restart.png" alt=""></button>
+  <div class="panel" id="scorePanel"><img src="assets/ui/icon_paw_512.png" alt="점수"><span id="score">0</span></div>
+  <div class="panel" id="timePanel"><img src="assets/ui/icon_clock.png" alt="시간"><span id="time">120</span></div>
+  <div id="timebar">
+    <div class="track"></div>
+    <div id="timefill"></div>
+  </div>
+  <div id="board">
+    <div id="grid"><svg id="fx"></svg></div>
+  </div>
+  <div id="fever" hidden></div>
+</div>
+
+<div id="overlay"><div class="card" id="card"></div></div>
+
+<script>
+(() => {
+  // ---------- 설정 ----------
+  const C = 10, R = 14, CELL = 84;   // 격자 (board_10x14.png 기준)
+  const PER = 10;                    // 색당 고양이 수 (짝수 → 이론상 전부 제거 가능)
+  const TIME = 120, PENALTY = 10;
+  // 고양이 이미지와, 지울 때 그리는 점선 색
+  const CATS = [
+    ['pink', '#f78fb3'], ['yellow', '#ffc93c'], ['mint', '#7fcf98'], ['taupe', '#a98a72'],
+    ['ivory', '#e8d8c4'], ['lavender', '#b49cf0'], ['blue', '#6fb4f0'], ['peach', '#ff9d5c'],
+  ].map(([name, color]) => ({ src: `assets/cats/cat_${name}.png`, color }));
+  const MEOWS = ['냥!', '와아', '야하!', '후엥', '냐~'];
+  const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  // 기믹
+  const GOLD = CATS.length, GOLDS = 2;          // 황금냥: 어느 색과도 짝이 되는 조커
+  const FEVER_MIN = 3, FEVER_TIME = 5;          // 한 번에 3마리 이상 → 5초 피버 (점수 2배, 헛손질 감점 없음)
+  const catImg = k => `<img src="${CATS[k].src}" alt="" draggable="false">`;
+  const tileImg = k => k === GOLD ? `<img class="gold" src="assets/cats/cat_ivory.png" alt="" draggable="false"><svg class="spark" viewBox="0 0 50 50"><use href="#spark"/></svg>` : catImg(k);
+  const colorOf = k => k === GOLD ? '#ffcf3a' : CATS[k].color;
+
+  // ---------- 저장 (iOS file:// 에서 localStorage 접근이 막힐 수 있음) ----------
+  const LS = {
+    get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+  };
+
+  // ---------- 사운드 (Web Audio로 직접 합성 — 음원 파일 없음) ----------
+  const Sound = (() => {
+    let ctx = null, on = LS.get('cattiles-sound') !== 'off';
+    // Safari는 사용자 터치 안에서 만들어야 소리가 난다 → 버튼 클릭 때 호출
+    const unlock = () => {
+      ctx ??= new (window.AudioContext || window.webkitAudioContext)();
+      if (ctx.state === 'suspended') ctx.resume();
+    };
+    // 음 하나: f에서 f2로 미끄러지며 dur초 동안 울린다 (at초 뒤 시작)
+    function tone(f, dur, { type = 'triangle', f2 = f, vol = 0.2, at = 0 } = {}) {
+      if (!on || !ctx) return;
+      const t = ctx.currentTime + at, o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(f, t);
+      o.frequency.exponentialRampToValueAtTime(f2, t + dur);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol, t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g).connect(ctx.destination);
+      o.start(t); o.stop(t + dur + 0.02);
+    }
+    const notes = (fs, gap, dur) => fs.forEach((f, i) => tone(f, i === fs.length - 1 ? dur * 2 : dur, { at: i * gap }));
+    return {
+      unlock,
+      get on() { return on; },
+      toggle() { on = !on; LS.set('cattiles-sound', on ? 'on' : 'off'); return on; },
+      // 한 번에 많이 지울수록 음이 높아진다
+      pop(n) {
+        const base = 620 * 2 ** ((n - 2) * 3 / 12);
+        for (let i = 0; i < n; i++) {
+          const f = base * 2 ** (i * 4 / 12);
+          tone(f, 0.13, { f2: f * 1.6, vol: 0.25, at: i * 0.06 });
+        }
+      },
+      miss: () => tone(200, 0.28, { type: 'square', f2: 110, vol: 0.06 }),
+      start: () => notes([660, 990], 0.1, 0.12),
+      clear: () => notes([523, 659, 784, 1047], 0.11, 0.14),
+      over: () => notes([784, 659, 523, 392], 0.16, 0.16),
+      tick: () => tone(1300, 0.04, { type: 'square', vol: 0.03 }),
+      fever: () => notes([784, 988, 1175, 1568], 0.07, 0.1),
+      safe: () => tone(440, 0.1, { vol: 0.1 }),
+    };
+  })();
+
+  // ---------- DOM ----------
+  const $ = id => document.getElementById(id);
+  const stage = $('stage'), board = $('board'), gridEl = $('grid'), fx = $('fx'), overlay = $('overlay'), card = $('card');
+  const scoreEl = $('score'), timeEl = $('time'), timebar = $('timebar'), timefill = $('timefill'), feverEl = $('fever');
+
+  let grid, tiles, score, left, timeLeft, feverLeft = 0, running, last, lastSec;
+
+  // 1080x1920 무대를 화면 안에 꽉 차게 맞추고 가운데 둔다
+  function layout() {
+    const s = Math.min(innerWidth / 1080, innerHeight / 1920);
+    stage.style.transform = `translate(${(innerWidth - 1080 * s) / 2}px, ${(innerHeight - 1920 * s) / 2}px) scale(${s})`;
+  }
+
+  function shuffle(a) {
+    for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; }
+    return a;
+  }
+
+  function newGame() {
+    gridEl.querySelectorAll('.tile, .float, .paw').forEach(n => n.remove());
+    fx.innerHTML = '';
+    grid = new Array(C * R).fill(-1);
+    tiles = new Array(C * R).fill(null);
+    shuffle([...Array(C * R).keys()]).slice(0, CATS.length * PER)
+      .forEach((p, i) => { grid[p] = i % CATS.length; });
+    // 놓인 고양이 중 무작위로 황금냥 GOLDS마리를 고른다
+    shuffle(grid.flatMap((k, p) => k < 0 ? [] : [p])).slice(0, GOLDS).forEach(p => { grid[p] = GOLD; });
+    stopFever();
+    grid.forEach((k, p) => {
+      if (k < 0) return;
+      const el = document.createElement('div');
+      el.className = 'tile';
+      el.style.cssText = `--x:${p % C};--y:${p / C | 0};--r:${(Math.random() * 6 - 3).toFixed(1)}deg`;
+      el.innerHTML = tileImg(k);
+      gridEl.appendChild(el);
+      tiles[p] = el;
+    });
+    score = 0; left = CATS.length * PER; timeLeft = TIME;
+    updateHud();
+  }
+
+  function start() {
+    Sound.unlock();
+    Sound.start();
+    newGame();
+    lastSec = TIME;
+    overlay.hidden = true;
+    running = true;
+    last = performance.now();
+    requestAnimationFrame(tick);
+  }
+
+  function tick(t) {
+    if (!running) return;
+    // 탭이 백그라운드일 때 시간이 흘러가지 않도록 프레임 간격을 제한
+    const dt = Math.min(0.1, (t - last) / 1000);
+    last = t;
+    timeLeft -= dt;
+    if (feverLeft > 0 && (feverLeft -= dt) <= 0) stopFever();
+    if (timeLeft <= 0) { timeLeft = 0; updateHud(); return end('time'); }
+    // 20초 남은 뒤로는 1초마다 째깍
+    const sec = Math.ceil(timeLeft);
+    if (sec !== lastSec) { lastSec = sec; if (sec <= 20) Sound.tick(); }
+    updateHud();
+    requestAnimationFrame(tick);
+  }
+
+  function updateHud() {
+    scoreEl.textContent = score;
+    timeEl.textContent = Math.ceil(timeLeft);
+    timefill.style.setProperty('--cut', `${(1 - timeLeft / TIME) * 100}%`);
+    timebar.classList.toggle('low', timeLeft <= 20);
+    if (feverLeft > 0) feverEl.textContent = `FEVER ×2 · ${Math.ceil(feverLeft)}`;
+  }
+
+  function startFever() {
+    if (feverLeft <= 0) Sound.fever();
+    feverLeft = FEVER_TIME;
+    board.classList.add('fever');
+    feverEl.hidden = false;
+    updateHud();
+  }
+
+  function stopFever() {
+    feverLeft = 0;
+    board.classList.remove('fever');
+    feverEl.hidden = true;
+  }
+
+  // 빈칸 p에서 상하좌우로 가장 가까운 고양이를 찾아, 같은 색 2마리 이상인 것들을 돌려준다
+  // 황금냥은 어느 색과도 짝: 색마다 (그 색 수 + 황금냥 수) ≥ 2 이면 지우고, 황금냥끼리도 짝이 된다
+  function scan(p) {
+    const x0 = p % C, y0 = p / C | 0, near = [];
+    for (const [dx, dy] of DIRS) {
+      for (let x = x0 + dx, y = y0 + dy; x >= 0 && x < C && y >= 0 && y < R; x += dx, y += dy) {
+        const q = y * C + x;
+        if (grid[q] >= 0) { near.push(q); break; }
+      }
+    }
+    const jokers = near.filter(q => grid[q] === GOLD), byColor = {};
+    near.forEach(q => { if (grid[q] !== GOLD) (byColor[grid[q]] ??= []).push(q); });
+    const groups = Object.values(byColor).filter(a => a.length + jokers.length >= 2);
+    const out = groups.flat();
+    if (jokers.length && (groups.length || jokers.length >= 2)) out.push(...jokers);
+    return out;
+  }
+
+  const center = p => [(p % C + 0.5) * CELL, ((p / C | 0) + 0.5) * CELL];
+
+  function floatText(p, text, cls = '') {
+    const [cx, cy] = center(p);
+    const el = document.createElement('div');
+    el.className = 'float ' + cls;
+    el.textContent = text;
+    el.style.left = cx + 'px';
+    el.style.top = cy + 'px';
+    gridEl.appendChild(el);
+    setTimeout(() => el.remove(), 800);
+  }
+
+  function paw(p) {
+    const el = document.createElement('div');
+    el.className = 'paw';
+    el.style.cssText = `--x:${p % C};--y:${p / C | 0}`;
+    el.innerHTML = '<svg viewBox="0 0 100 100" width="100%" height="100%"><use href="#paw"/></svg>';
+    gridEl.appendChild(el);
+    setTimeout(() => el.remove(), 600);
+  }
+
+  function zap(from, to, color) {
+    const [x1, y1] = center(from), [x2, y2] = center(to);
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('class', 'zap');
+    line.setAttribute('x1', x1); line.setAttribute('y1', y1);
+    line.setAttribute('x2', x2); line.setAttribute('y2', y2);
+    line.setAttribute('stroke', color);
+    fx.appendChild(line);
+    setTimeout(() => line.remove(), 500);
+  }
+
+  gridEl.addEventListener('pointerdown', e => {
+    if (!running) return;
+    // 무대가 scale 되어 있어도 getBoundingClientRect는 화면 좌표라 비율로 계산하면 된다
+    const rect = gridEl.getBoundingClientRect();
+    const x = Math.floor((e.clientX - rect.left) / rect.width * C);
+    const y = Math.floor((e.clientY - rect.top) / rect.height * R);
+    if (x < 0 || x >= C || y < 0 || y >= R) return;
+    const p = y * C + x;
+
+    if (grid[p] >= 0) {               // 고양이를 누르면 살짝 움찔만
+      const el = tiles[p];
+      el.classList.remove('nudge'); void el.offsetWidth; el.classList.add('nudge');
+      return;
+    }
+
+    paw(p);
+    const hits = scan(p);
+    if (!hits.length && feverLeft > 0) {   // 피버 중 헛손질은 봐준다
+      Sound.safe();
+      floatText(p, '괜찮아!', 'safe');
+      return;
+    }
+    if (!hits.length) {
+      timeLeft = Math.max(0, timeLeft - PENALTY);
+      Sound.miss();
+      floatText(p, `-${PENALTY}초`, 'miss');
+      board.classList.remove('shake'); void board.offsetWidth; board.classList.add('shake');
+      updateHud();
+      if (timeLeft === 0) end('time');
+      return;
+    }
+
+    const mult = feverLeft > 0 ? 2 : 1;
+    for (const q of hits) {
+      zap(p, q, colorOf(grid[q]));
+      floatText(q, MEOWS[Math.random() * MEOWS.length | 0]);
+      const el = tiles[q];
+      el.classList.add('pop');
+      setTimeout(() => el.remove(), 450);
+      grid[q] = -1; tiles[q] = null;
+    }
+    Sound.pop(hits.length);
+    if (mult > 1) floatText(p, `×${mult}`, 'safe');
+    score += hits.length * mult;
+    left -= hits.length;
+    if (hits.length >= FEVER_MIN) startFever();
+    updateHud();
+
+    if (left === 0) end('clear');
+  });
+
+  // ---------- 화면 ----------
+  const sampleCats = () => `<div class="cats">${CATS.map((_, k) => catImg(k)).join('')}</div>`;
+
+  function showIntro() {
+    const best = LS.get('cattiles-best');
+    card.innerHTML = `
+      <img class="logo" src="assets/ui/title.png" alt="냥냥 컬러타일">
+      ${sampleCats()}
+      <p>빈칸을 톡! 누르면<br>위·아래·왼쪽·오른쪽으로<br>가장 가까운 고양이를 불러요.</p>
+      <p>같은 고양이가 <b>2마리 이상</b>이면 쏙!<br>헛손질하면 <b>-${PENALTY}초</b></p>
+      <p>✨ 황금냥은 누구와도 짝!<br>한 번에 ${FEVER_MIN}마리 이상 → <b>피버 ${FEVER_TIME}초</b><br>(점수 2배, 헛손질해도 괜찮아요)</p>
+      ${best ? `<p>최고 기록 👑 ${best}</p>` : ''}
+      <button class="btn" id="go">시작!</button>`;
+    overlay.hidden = false;
+    $('go').onclick = start;
+  }
+
+  function end(reason) {
+    running = false;
+    stopFever();
+    let bonus = 0;
+    if (reason === 'clear') { bonus = Math.ceil(timeLeft); score += bonus; }
+    setTimeout(reason === 'clear' ? Sound.clear : Sound.over, 300);
+    const prev = Number(LS.get('cattiles-best')) || 0;
+    const isBest = score > prev;
+    if (isBest) LS.set('cattiles-best', score);
+    updateHud();
+    const title = { clear: '전부 쏙! 🎉', time: '시간 끝!' }[reason];
+    const sub = {
+      clear: `남은 시간 보너스 +${bonus}`,
+      time: `남은 고양이 ${left}마리`,
+    }[reason];
+    setTimeout(() => {
+      card.innerHTML = `
+        <h2>${title}</h2>
+        <div class="score"><img src="assets/ui/icon_paw_512.png" alt="">${score}</div>
+        <p>${sub}</p>
+        <p>${isBest ? '✨ 최고 기록! ✨' : `최고 기록 👑 ${Math.max(prev, score)}`}</p>
+        <button class="btn" id="go">한 판 더!</button>`;
+      overlay.hidden = false;
+      $('go').onclick = start;
+    }, 600);
+  }
+
+  $('restart').onclick = () => { running = false; stopFever(); showIntro(); };
+  const soundBtn = $('sound');
+  soundBtn.classList.toggle('off', !Sound.on);
+  soundBtn.onclick = () => { Sound.unlock(); soundBtn.classList.toggle('off', !Sound.toggle()); };
+  addEventListener('resize', layout);
+  layout();
+  newGame();
+  showIntro();
+})();
+</script>
+</body>
+</html>

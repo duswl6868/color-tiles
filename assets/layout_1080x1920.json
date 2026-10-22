@@ -1,0 +1,24 @@
+{
+  "canvas": {
+    "width": 1080,
+    "height": 1920
+  },
+  "board": {
+    "x": 40,
+    "y": 390,
+    "width": 1000,
+    "height": 1344,
+    "gridX": 120,
+    "gridY": 470,
+    "columns": 10,
+    "rows": 14,
+    "cellSize": 84
+  },
+  "title": {
+    "x": 280,
+    "y": 60,
+    "width": 520,
+    "height": 240
+  },
+  "note": "Example positions; account for device safe areas. Render scores and time as live text. Use frame and individual cell textures for responsive layouts."
+}

@@ -1,0 +1,11 @@
+.DS_Store
+node_modules/
+
+# Expo 로컬 산출물
+app/.expo/
+app/dist/
+
+# 게임에 쓰지 않는 원본·시안 (공개 배포 제외)
+nyangnyang-redesign.png
+assets/preview_1080x1920.png
+assets/generation-prompts.txt
