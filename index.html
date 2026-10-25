@@ -132,6 +132,21 @@
   .tile.stuck { animation: stuck .12s 4 alternate; }
   @keyframes stuck { from { transform: rotate(-8deg); } to { transform: rotate(8deg); } }
   .float.big.miss { font-size: 64px; }
+  /* ---------- 기믹 (무한 모드): 시계 아이템 · 쥐 ---------- */
+  .item {
+    position: absolute; width: 84px; height: 84px; padding: 6px; pointer-events: none; z-index: 2;
+    left: calc(84px * var(--x)); top: calc(84px * var(--y));
+    animation: itemIn .25s ease-out;
+  }
+  .item img { width: 100%; height: 100%; display: block; filter: drop-shadow(0 0 6px #fff) drop-shadow(0 4px 4px rgba(0,0,0,.25)); }
+  .item.blink { animation: itemBlink .2s infinite alternate; }
+  @keyframes itemIn { from { transform: scale(0); } 70% { transform: scale(1.25); } }
+  @keyframes itemBlink { to { opacity: .25; } }
+  .mouse {
+    position: absolute; left: 0; top: 0; width: 140px; height: 140px; margin: -70px 0 0 -70px;
+    font-size: 110px; line-height: 140px; text-align: center; pointer-events: none; z-index: 5;
+    filter: drop-shadow(0 6px 6px rgba(0,0,0,.3)); will-change: transform;
+  }
   /* 막혔을 때 안내는 떠오르지 않고 제자리에서 잠깐 머문 뒤 사라진다 (E_STUCK_MS 동안) */
   .float.big.hold { animation: hold 2.1s ease-out forwards; }
   @keyframes hold {
@@ -272,6 +287,11 @@
   const E_PER = 0.8, E_DECAY = 0.05, E_MIN = 0.3;     // 1마리당 보너스(초), 판마다 감소, 하한
   const E_CLEAR = 15;                                 // 판을 전부 지우면 +15초
   const E_LEFT = 2;                                   // 막히면 남은 고양이 1마리당 −2초
+  // 기믹 (무한 모드): 시계 = 기회(누르면 +초), 쥐 = 위협(못 치우고 지나가면 −초). 시간은 모두 게임 시간(초) 기준
+  //   ※ 시험 중이라 둘 다 1판부터 나온다 (예정: 시계 2판, 쥐 4판)
+  const G_CLOCK_FROM = 1, G_CLOCK_EVERY = [15, 25], G_CLOCK_LIFE = 4, G_CLOCK_BONUS = 5;   // 시계: N판부터 / 간격 / 수명 / +초
+  const G_MOUSE_FROM = 1, G_MOUSE_EVERY = [20, 30], G_MOUSE_CROSS = 5, G_MOUSE_STEAL = 2;  // 쥐: N판부터 / 간격 / 가로지르는 시간 / 놓치면 −초
+  const G_MOUSE_HIT = 80, G_MOUSE_SAFE = 130;          // 쥐 터치 판정 반경 / 이 안의 빗맞음은 감점 없음 (무대 px)
   const E_NEXT_MS = 650, E_STUCK_MS = 2200;           // 판이 바뀌는 동안 (시간 정지) — 막혔을 땐 안내를 읽을 시간을 더 준다
   const catImg = k => `<img src="${CATS[k].src}" alt="" draggable="false">`;
 
@@ -347,6 +367,8 @@
       clear: () => notes([523, 659, 784, 1047], 0.11, 0.14),
       over: () => notes([784, 659, 523, 392], 0.16, 0.16),
       tick: () => tone(1300, 0.04, { type: 'square', vol: 0.03 }),
+      bonus: () => tone(1046, 0.18, { f2: 1568, vol: 0.22 }),
+      squeak: () => { tone(1800, 0.08, { f2: 2600, vol: 0.12 }); tone(2200, 0.1, { f2: 3200, vol: 0.1, at: 0.09 }); },
     };
   })();
 
@@ -371,7 +393,8 @@
 
   // 판만 새로 깐다 (점수·시간은 그대로). 시작부터 둘 곳이 없는 판은 다시 깐다
   function dealBoard() {
-    gridEl.querySelectorAll('.tile, .float, .paw, .flash, .merged, .spark').forEach(n => n.remove());
+    gimmickReset();
+    gridEl.querySelectorAll('.tile, .float, .paw, .flash, .merged, .spark, .item, .mouse').forEach(n => n.remove());
     tiles = new Array(C * R).fill(null);
     do {
       grid = new Array(C * R).fill(-1);
@@ -426,8 +449,10 @@
     if (!running) return;
     if (switching) { last = t; requestAnimationFrame(tick); return; }   // 판 바뀌는 동안 시간 정지
     // 탭이 백그라운드일 때 시간이 흘러가지 않도록 프레임 간격을 제한
-    timeLeft -= Math.min(0.1, (t - last) / 1000);
+    const dt = Math.min(0.1, (t - last) / 1000);
+    timeLeft -= dt;
     last = t;
+    gimmickTick(dt);
     if (timeLeft <= 0) { timeLeft = 0; updateHud(); return end('time'); }
     // 20초 남은 뒤로는 1초마다 째깍
     const sec = Math.ceil(timeLeft);
@@ -529,6 +554,88 @@
     }, MERGE_MS);
   }
 
+  // ---------- 기믹: 시계 아이템 · 쥐 ----------
+  const gm = { clock: null, mouse: null, clockIn: 0, mouseIn: 0 };
+  const randIn = ([a, b]) => a + Math.random() * (b - a);
+  function gimmickReset() {
+    gm.clock?.el.remove(); gm.mouse?.el.remove();
+    gm.clock = gm.mouse = null;
+    gm.clockIn = randIn(G_CLOCK_EVERY); gm.mouseIn = randIn(G_MOUSE_EVERY);
+  }
+  // 시계: 빈칸 하나에 G_CLOCK_LIFE초 동안. 누르면 +G_CLOCK_BONUS초 (판정하지 않음)
+  function spawnClock() {
+    const empty = grid.flatMap((k, p) => k < 0 ? [p] : []);
+    if (!empty.length) return;
+    const p = empty[Math.random() * empty.length | 0];
+    const el = document.createElement('div');
+    el.className = 'item';
+    el.style.cssText = `--x:${p % C};--y:${p / C | 0}`;
+    el.innerHTML = '<img src="assets/ui/icon_clock.png" alt="">';
+    gridEl.appendChild(el);
+    gm.clock = { p, el, life: G_CLOCK_LIFE };
+  }
+  // 쥐: 무작위 줄을 따라 보드를 가로지른다 (G_MOUSE_CROSS초). 고양이를 가린다
+  function spawnMouse() {
+    const dir = Math.random() < 0.5 ? 1 : -1;
+    const y = ((1 + Math.random() * (R - 2)) | 0) * CELL + CELL / 2;
+    const el = document.createElement('div');
+    el.className = 'mouse';
+    el.textContent = '🐁';
+    gridEl.appendChild(el);
+    gm.mouse = { el, x: dir > 0 ? -120 : C * CELL + 120, y, v: dir * (C * CELL + 240) / G_MOUSE_CROSS };
+    moveMouse();
+    Sound.squeak();
+  }
+  const moveMouse = () => { const m = gm.mouse; m.el.style.transform = `translate(${m.x}px, ${m.y}px) scaleX(${m.v > 0 ? -1 : 1})`; };
+  function gimmickTick(dt) {
+    if (mode !== 'endless') return;
+    if (gm.clock) {
+      gm.clock.life -= dt;
+      gm.clock.el.classList.toggle('blink', gm.clock.life < 1.5);
+      if (gm.clock.life <= 0) { gm.clock.el.remove(); gm.clock = null; gm.clockIn = randIn(G_CLOCK_EVERY); }
+    } else if (boardNo >= G_CLOCK_FROM && (gm.clockIn -= dt) <= 0) spawnClock();
+    if (gm.mouse) {
+      gm.mouse.x += gm.mouse.v * dt;
+      moveMouse();
+      if (gm.mouse.x < -200 || gm.mouse.x > C * CELL + 200) mouseEscaped();
+    } else if (boardNo >= G_MOUSE_FROM && (gm.mouseIn -= dt) <= 0) spawnMouse();
+  }
+  function floatAt(x, y, text, cls = '') {
+    const el = document.createElement('div');
+    el.className = 'float ' + cls;
+    el.textContent = text;
+    el.style.left = x + 'px'; el.style.top = y + 'px';
+    gridEl.appendChild(el);
+    setTimeout(() => el.remove(), 800);
+  }
+  function collectClock() {
+    const { p, el } = gm.clock;
+    el.remove(); gm.clock = null; gm.clockIn = randIn(G_CLOCK_EVERY);
+    timeLeft = Math.min(E_MAX, timeLeft + G_CLOCK_BONUS);
+    floatText(p, `+${G_CLOCK_BONUS}초`, 'gain');
+    Sound.bonus();
+    updateHud();
+  }
+  // 쥐를 맞히면 날려 보낸다 (보상 없음 — 치우는 것 자체가 손해를 막는 것)
+  function flingMouse() {
+    const m = gm.mouse; gm.mouse = null; gm.mouseIn = randIn(G_MOUSE_EVERY);
+    m.el.style.transition = 'transform .6s ease-in, opacity .6s';
+    m.el.style.transform = `translate(${m.x + (m.v > 0 ? 200 : -200)}px, ${m.y - 700}px) rotate(${m.v > 0 ? 720 : -720}deg) scale(.5)`;
+    m.el.style.opacity = '0';
+    setTimeout(() => m.el.remove(), 600);
+    floatAt(m.x, m.y, '찍!');
+    Sound.squeak();
+  }
+  // 못 치우고 끝까지 지나가면 −G_MOUSE_STEAL초. 빠져나간 쪽에 이유를 보여 준다
+  function mouseEscaped() {
+    const m = gm.mouse; gm.mouse = null; gm.mouseIn = randIn(G_MOUSE_EVERY);
+    m.el.remove();
+    timeLeft = Math.max(0, timeLeft - G_MOUSE_STEAL);
+    floatAt(m.v > 0 ? C * CELL - 170 : 170, m.y, `치즈를 훔쳐 갔어요! -${G_MOUSE_STEAL}초`, 'miss');
+    Sound.miss();
+    updateHud();   // 0초가 되면 이 직후 tick()의 시간 검사에서 종료된다 (여기서 끝내면 종료가 두 번 처리됨)
+  }
+
   // 보드 한가운데 큰 안내 문구
   function banner(text, cls = '', ms = 1100) {
     const el = document.createElement('div');
@@ -578,10 +685,18 @@
     if (!running || switching) return;
     // 무대가 scale 되어 있어도 getBoundingClientRect는 화면 좌표라 비율로 계산하면 된다
     const rect = gridEl.getBoundingClientRect();
+    // 쥐가 지나가는 중이면 쥐 먼저: 맞히면 날려 보내고, 근처 빗맞음은 감점 없이 무시
+    if (gm.mouse) {
+      const gx = (e.clientX - rect.left) / rect.width * C * CELL, gy = (e.clientY - rect.top) / rect.height * R * CELL;
+      const d = Math.hypot(gx - gm.mouse.x, gy - gm.mouse.y);
+      if (d < G_MOUSE_HIT) return flingMouse();
+      if (d < G_MOUSE_SAFE) return;
+    }
     const x = Math.floor((e.clientX - rect.left) / rect.width * C);
     const y = Math.floor((e.clientY - rect.top) / rect.height * R);
     if (x < 0 || x >= C || y < 0 || y >= R) return;
     const p = y * C + x;
+    if (gm.clock && gm.clock.p === p) return collectClock();   // 시계 줍기 (판정하지 않음)
     if (grid[p] >= 0) return;          // 고양이를 누르면 아무 일도 없다 (감점도 없음)
 
     paw(p);
