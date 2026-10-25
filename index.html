@@ -97,12 +97,6 @@
     transform: rotate(var(--r));
   }
   .tile img { position: absolute; width: 98px; height: 98px; left: -7px; top: -7px; }
-  .tile.pop { animation: pop .45s ease-in forwards; }
-  @keyframes pop {
-    0% { transform: rotate(var(--r)) scale(1); }
-    35% { transform: rotate(0) scale(1.25, 1.1); }
-    100% { transform: translateY(-28px) scale(0); opacity: 0; }
-  }
   /* 누른 칸부터 지워지는 고양이까지 지나간 칸이 그 색으로 반짝인다 */
   .flash {
     position: absolute; width: 84px; height: 84px; pointer-events: none;
@@ -124,6 +118,32 @@
       3px 3px var(--red), -3px 3px var(--red), 3px -3px var(--red), -3px -3px var(--red);
   }
   @keyframes rise { to { transform: translate(-50%, -150%); opacity: 0; } }
+
+  /* ---------- 합체 연출: 짝이 된 고양이가 누른 칸으로 빨려 들어와 뭉친 뒤 펑 ---------- */
+  .tile.fly {
+    z-index: 3; transition: transform .15s cubic-bezier(.55, 0, .9, .45);
+    transform: translate(var(--dx), var(--dy)) scale(.55);
+  }
+  .merged {
+    position: absolute; width: 84px; height: 84px; pointer-events: none; z-index: 4;
+    left: calc(84px * var(--x)); top: calc(84px * var(--y));
+    animation: merge .28s ease-out forwards;
+  }
+  .merged img { position: absolute; width: 98px; height: 98px; left: -7px; top: -7px; }
+  @keyframes merge {
+    0% { transform: scale(.6); }
+    45% { transform: scale(1.45, 1.2); }
+    100% { transform: scale(0) rotate(25deg); opacity: 0; }
+  }
+  .spark {
+    position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%;
+    pointer-events: none; z-index: 4; background: var(--c); border: 3px solid #fff;
+    animation: spark .38s ease-out forwards;
+  }
+  @keyframes spark {
+    0% { transform: translate(0, 0) scale(1); }
+    100% { transform: translate(var(--sx), var(--sy)) scale(.2); opacity: 0; }
+  }
   .paw {
     position: absolute; width: 84px; height: 84px; pointer-events: none; padding: 14px;
     left: calc(84px * var(--x)); top: calc(84px * var(--y));
@@ -220,6 +240,7 @@
   let CATS = [], PER = 0;            // loadCats()가 채운다
   const MEOWS = ['냥!', '와아', '야하!', '후엥', '냐~'];
   const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  const MERGE_MS = 150;                                               // 누른 칸까지 날아오는 시간 (CSS .tile.fly 전환과 같게)
   const catImg = k => `<img src="${CATS[k].src}" alt="" draggable="false">`;
 
   function loadCats() {
@@ -309,7 +330,7 @@
   }
 
   function newGame() {
-    gridEl.querySelectorAll('.tile, .float, .paw, .flash').forEach(n => n.remove());
+    gridEl.querySelectorAll('.tile, .float, .paw, .flash, .merged, .spark').forEach(n => n.remove());
     grid = new Array(C * R).fill(-1);
     tiles = new Array(C * R).fill(null);
     shuffle([...Array(C * R).keys()]).slice(0, CATS.length * PER)
@@ -418,6 +439,43 @@
     }
   }
 
+  // 제거 연출: 판정·점수는 즉시 반영하고, 보이는 것만 시간차를 둔다.
+  // 짝이 된 고양이들이 누른 칸 p로 날아와(MERGE_MS) 겹치면, 그 자리에서 한 마리가 뭉쳤다가 펑 터진다
+  function mergeInto(p, hits) {
+    const px = p % C, py = p / C | 0;
+    for (const q of hits) {
+      flashPath(p, q, CATS[grid[q]].color);
+      const el = tiles[q];
+      el.style.setProperty('--dx', `${(px - q % C) * CELL}px`);
+      el.style.setProperty('--dy', `${(py - (q / C | 0)) * CELL}px`);
+      void el.offsetWidth;            // 전환 시작점 확정
+      el.classList.add('fly');
+      setTimeout(() => el.remove(), MERGE_MS);
+    }
+    const colors = [...new Set(hits.map(q => CATS[grid[q]].color))];
+    const k = grid[hits[0]];
+    setTimeout(() => {
+      const m = document.createElement('div');
+      m.className = 'merged';
+      m.style.cssText = `--x:${px};--y:${py}`;
+      m.innerHTML = catImg(k);
+      gridEl.appendChild(m);
+      setTimeout(() => m.remove(), 280);
+      // 입자: 지운 고양이 색으로 사방에 튄다 (많이 지울수록 많이)
+      const [cx, cy] = center(p), n = 6 + hits.length * 2;
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2, d = 90 + Math.random() * 60;
+        const sp = document.createElement('div');
+        sp.className = 'spark';
+        sp.style.cssText = `left:${cx}px;top:${cy}px;--c:${colors[i % colors.length]};--sx:${Math.cos(a) * d}px;--sy:${Math.sin(a) * d}px`;
+        gridEl.appendChild(sp);
+        setTimeout(() => sp.remove(), 380);
+      }
+      floatText(p, hits.length >= 3 ? `+${hits.length}!` : MEOWS[Math.random() * MEOWS.length | 0]);
+      Sound.pop(hits.length);
+    }, MERGE_MS);
+  }
+
   gridEl.addEventListener('pointerdown', e => {
     if (ready) begin();                // 첫 터치: 시작과 동시에 이 터치도 판정한다
     if (!running) return;
@@ -441,15 +499,8 @@
       return;
     }
 
-    for (const q of hits) {
-      flashPath(p, q, CATS[grid[q]].color);
-      floatText(q, MEOWS[Math.random() * MEOWS.length | 0]);
-      const el = tiles[q];
-      el.classList.add('pop');
-      setTimeout(() => el.remove(), 450);
-      grid[q] = -1; tiles[q] = null;
-    }
-    Sound.pop(hits.length);
+    mergeInto(p, hits);
+    for (const q of hits) { grid[q] = -1; tiles[q] = null; }
     score += hits.length;
     left -= hits.length;
     updateHud();
