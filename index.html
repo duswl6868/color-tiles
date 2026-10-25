@@ -178,7 +178,7 @@
   </button>
   <button class="imgbtn" id="restart" aria-label="다시 시작"><img src="assets/ui/button_restart.png" alt=""></button>
   <div class="panel" id="scorePanel"><img src="assets/ui/icon_paw_512.png" alt="점수"><span id="score">0</span></div>
-  <div class="panel" id="timePanel"><img src="assets/ui/icon_clock.png" alt="시간"><span id="time">120</span></div>
+  <div class="panel" id="timePanel"><img src="assets/ui/icon_clock.png" alt="시간"><span id="time">90</span></div>
   <div id="timebar">
     <div class="track"></div>
     <div id="timefill"></div>
@@ -195,7 +195,7 @@
   // ---------- 설정 (원작 gamesaien Color Tiles 규칙, 판만 10×14) ----------
   const C = 10, R = 14, CELL = 84;   // 격자 (board_10x14.png 기준)
   const TILES = 80;                  // 원작 밀도(200/345 ≈ 58%)에 맞춘 고양이 수
-  const TIME = 120, PENALTY = 10;
+  const TIME = 90, PENALTY = 10;     // 원작 120초 → 80마리 판에 맞춰 90초 (퍼펙트 ≈ 40수)
   // 고양이 이미지와, 지울 때 지나간 칸을 반짝이는 색.
   // 이미지가 실제로 있는 색만 쓴다 → cat_gray/cat_black을 넣으면 자동으로 10색×8마리가 된다
   const ALL_CATS = [
@@ -454,8 +454,11 @@
     const isBest = better(now, prev);
     if (isBest) LS.set('cattiles-record', JSON.stringify(now));
     updateHud();
-    const title = { clear: '전부 쏙! 🎉', time: '시간 끝!' }[reason];
-    const sub = reason === 'clear' ? `${now.time.toFixed(1)}초 만에 전부 지웠어요` : `남은 고양이 ${left}마리`;
+    // 시간 종료는 남은 수에 따라 "아깝다"를 강조한다 (모든 판은 순서만 맞으면 깰 수 있다)
+    const [title, sub] = reason === 'clear' ? ['전부 쏙! 🎉', `${now.time.toFixed(1)}초 만에 전부 지웠어요`]
+      : left <= 2 ? ['아깝다! 😿', `딱 ${left}마리만 더 지우면 됐는데!`]
+      : left <= 5 ? ['거의 다 왔어요!', `${left}마리 남았어요 · 순서를 바꾸면 깰 수 있어요`]
+      : ['시간 끝!', `남은 고양이 ${left}마리`];
     setTimeout(() => {
       card.innerHTML = `
         <h2>${title}</h2>
