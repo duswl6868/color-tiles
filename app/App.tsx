@@ -8,8 +8,11 @@ import { WebView } from 'react-native-webview';
 const GAME_URL = 'https://duswl6868.github.io/color-tiles/';
 const BG = '#bfe9fb'; // 게임 배경 하늘색 — 노치/홈바 영역과 로딩 화면에 쓴다
 
+// react-native-webview 14는 제네릭 기본값이 undefined라 props가 never로 추론된다 → 빈 객체 타입을 명시
+type GameWebView = WebView<object>;
+
 export default function App() {
-  const web = useRef<WebView>(null);
+  const web = useRef<GameWebView>(null);
   const [failed, setFailed] = useState(false);
 
   return (
@@ -30,7 +33,7 @@ export default function App() {
             </Pressable>
           </View>
         ) : null}
-        <WebView
+        <WebView<object>
           ref={web}
           source={{ uri: GAME_URL }}
           style={[styles.web, failed && styles.hidden]}
