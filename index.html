@@ -103,7 +103,7 @@
     35% { transform: rotate(0) scale(1.25, 1.1); }
     100% { transform: translateY(-28px) scale(0); opacity: 0; }
   }
-  /* 원작처럼, 누른 칸부터 지워지는 고양이까지 지나간 칸이 그 색으로 반짝인다 */
+  /* 누른 칸부터 지워지는 고양이까지 지나간 칸이 그 색으로 반짝인다 */
   .flash {
     position: absolute; width: 84px; height: 84px; pointer-events: none;
     left: calc(84px * var(--x)); top: calc(84px * var(--y));
@@ -141,12 +141,26 @@
     width: 100%; max-width: 360px; text-align: center; background: var(--cream);
     border: 7px solid var(--teal); border-radius: 28px;
     box-shadow: inset 0 0 0 3px #a9eef0, 0 0 0 3px #fff, 0 14px 30px rgba(0,50,70,.35);
-    padding: 16px 20px 24px;
+    padding: 16px 20px 24px; position: relative;
   }
-  .card .logo { width: 70%; display: block; margin: 0 auto 2px; }
+  /* 시작 카드: 타이틀이 카드 위쪽 테두리 가운데에 반쯤 걸친다 (230×142 → 위로 절반) */
+  .card.with-logo { margin-top: 72px; padding-top: 80px; }
+  .card .logo {
+    position: absolute; left: 50%; top: 0; width: 230px; transform: translate(-50%, -50%);
+    filter: drop-shadow(0 6px 8px rgba(0, 50, 70, .25)); pointer-events: none;
+  }
   .card h2 { margin: 4px 0 6px; font-size: 32px; font-weight: 400; color: var(--teal-dark); }
   .card p { margin: 6px 0; font-size: 18px; line-height: 1.4; }
   .card b { font-weight: 400; color: var(--red); }
+  /* 규칙 3줄 (번호 없이 가운데 정렬) */
+  .card .steps { margin: 4px 0 2px; padding: 0; list-style: none; font-size: 18px; line-height: 1.6; }
+  /* 최고 기록: 규칙 문구와 섞이지 않게 금색 배지로 분리 */
+  .card .record {
+    display: inline-flex; align-items: center; gap: 8px; margin: 14px 0 2px; padding: 6px 16px;
+    border-radius: 999px; background: linear-gradient(#fff6d6, #ffe7a3); border: 2px solid #f2c14e;
+    box-shadow: 0 2px 0 #e0a92e; font-size: 17px; color: #7a4a10; line-height: 1.2;
+  }
+  .card .record small { font-size: 14px; color: #a8742a; }
   .card .score { font-size: 42px; margin: 4px 0; display: flex; align-items: center; justify-content: center; gap: 8px; }
   .card .score img { height: 40px; }
   /* 10색이면 5마리씩 두 줄 */
@@ -192,10 +206,10 @@
 
 <script>
 (() => {
-  // ---------- 설정 (원작 gamesaien Color Tiles 규칙, 판만 10×14) ----------
+  // ---------- 설정 ----------
   const C = 10, R = 14, CELL = 84;   // 격자 (board_10x14.png 기준)
-  const TILES = 80;                  // 원작 밀도(200/345 ≈ 58%)에 맞춘 고양이 수
-  const TIME = 90, PENALTY = 10;     // 원작 120초 → 80마리 판에 맞춰 90초 (퍼펙트 ≈ 40수)
+  const TILES = 80;                  // 채움률 ≈ 57% — 초반엔 어디든 터지고 후반엔 멀리 봐야 하는 밀도
+  const TIME = 90, PENALTY = 10;     // 퍼펙트 ≈ 40수 → 막판에 쫓기는 긴장이 남는 시간
   // 고양이 이미지와, 지울 때 지나간 칸을 반짝이는 색.
   // 이미지가 실제로 있는 색만 쓴다 → cat_gray/cat_black을 넣으면 자동으로 10색×8마리가 된다
   const ALL_CATS = [
@@ -231,7 +245,8 @@
     return null;
   }
   const better = (a, b) => !b || a.score > b.score || (a.score === b.score && a.time != null && (b.time == null || a.time < b.time));
-  const recordText = r => r.time != null ? `👑 전부 쏙! ${r.time.toFixed(1)}초` : `👑 ${r.score}마리`;
+  const recordText = r => r.time != null ? `전부 쏙! ${r.time.toFixed(1)}초` : `${r.score}마리`;
+  const recordBadge = r => `<div class="record">👑 <small>최고 기록</small> ${recordText(r)}</div>`;
 
   // ---------- 사운드 (Web Audio로 직접 합성 — 음원 파일 없음) ----------
   const Sound = (() => {
@@ -280,7 +295,7 @@
   const stage = $('stage'), board = $('board'), gridEl = $('grid'), overlay = $('overlay'), card = $('card');
   const scoreEl = $('score'), timeEl = $('time'), timebar = $('timebar'), timefill = $('timefill');
 
-  let grid, tiles, score, left, timeLeft, running, last, lastSec;
+  let grid, tiles, score, left, timeLeft, running, ready = false, last, lastSec;
 
   // 1080x1920 무대를 화면 안에 꽉 차게 맞추고 가운데 둔다
   function layout() {
@@ -312,16 +327,28 @@
     updateHud();
   }
 
+  // [시작!]: 판을 깔고 보여 주기만 한다. 시간은 첫 터치(begin)부터 흐른다
   function start() {
     Sound.unlock();
-    Sound.start();
     newGame();
-    lastSec = TIME;
     overlay.hidden = true;
+    ready = true;
+  }
+
+  function begin() {
+    ready = false;
+    Sound.start();
+    lastSec = TIME;
     running = true;
     last = performance.now();
     requestAnimationFrame(tick);
   }
+
+  // 첫 터치에 시간이 흐르기 시작한다. 판 위 터치는 격자 리스너가 begin() 후 그대로 판정하고,
+  // 판 밖 터치는 여기서 시작만 한다. 소리/다시하기 버튼은 원래 기능만 하도록 제외
+  addEventListener('pointerdown', e => {
+    if (ready && !e.target.closest('.imgbtn, #overlay')) begin();
+  });
 
   function tick(t) {
     if (!running) return;
@@ -392,6 +419,7 @@
   }
 
   gridEl.addEventListener('pointerdown', e => {
+    if (ready) begin();                // 첫 터치: 시작과 동시에 이 터치도 판정한다
     if (!running) return;
     // 무대가 scale 되어 있어도 getBoundingClientRect는 화면 좌표라 비율로 계산하면 된다
     const rect = gridEl.getBoundingClientRect();
@@ -399,7 +427,7 @@
     const y = Math.floor((e.clientY - rect.top) / rect.height * R);
     if (x < 0 || x >= C || y < 0 || y >= R) return;
     const p = y * C + x;
-    if (grid[p] >= 0) return;          // 원작처럼 고양이를 누르면 아무 일도 없다 (감점도 없음)
+    if (grid[p] >= 0) return;          // 고양이를 누르면 아무 일도 없다 (감점도 없음)
 
     paw(p);
     const hits = scan(p);
@@ -437,10 +465,11 @@
     card.innerHTML = `
       <img class="logo" src="assets/ui/title.png" alt="냥냥 컬러타일">
       ${sampleCats()}
-      <p>빈칸을 톡! 누르면<br>위·아래·왼쪽·오른쪽으로<br>가장 가까운 고양이를 불러요.</p>
-      <p>같은 고양이가 <b>2마리 이상</b>이면 쏙!<br>헛손질하면 <b>-${PENALTY}초</b></p>
-      ${rec ? `<p>최고 기록 ${recordText(rec)}</p>` : ''}
+      <ol class="steps"><li>빈칸을 톡! 누르면</li><li>위·아래·양옆 고양이 중</li><li><b>같은 색끼리</b> 쏙 사라져요</li></ol>
+      <p>짝이 없으면 <b>-${PENALTY}초</b></p>
+      ${rec ? recordBadge(rec) : ''}
       <button class="btn" id="go">시작!</button>`;
+    card.classList.add('with-logo');
     overlay.hidden = false;
     $('go').onclick = start;
   }
@@ -448,7 +477,7 @@
   function end(reason) {
     running = false;
     setTimeout(reason === 'clear' ? Sound.clear : Sound.over, 300);
-    // 원작처럼 전부 지우면 걸린 시간(헛손질 감점 포함)을 남긴다
+    // 전부 지우면 걸린 시간(헛손질 감점 포함)을 0.1초 단위로 내려서 남긴다
     const now = { score, time: reason === 'clear' ? Math.floor((TIME - timeLeft) * 10) / 10 : null };
     const prev = loadRecord();
     const isBest = better(now, prev);
@@ -464,14 +493,15 @@
         <h2>${title}</h2>
         <div class="score"><img src="assets/ui/icon_paw_512.png" alt="">${score}</div>
         <p>${sub}</p>
-        <p>${isBest ? '✨ 최고 기록! ✨' : `최고 기록 ${recordText(prev)}`}</p>
+        ${isBest ? '<div class="record">✨ 최고 기록! ✨</div>' : recordBadge(prev)}
         <button class="btn" id="go">한 판 더!</button>`;
+      card.classList.remove('with-logo');
       overlay.hidden = false;
       $('go').onclick = start;
     }, 600);
   }
 
-  $('restart').onclick = () => { running = false; showIntro(); };
+  $('restart').onclick = () => { running = false; ready = false; showIntro(); };
   const soundBtn = $('sound');
   soundBtn.classList.toggle('off', !Sound.on);
   soundBtn.onclick = () => { Sound.unlock(); soundBtn.classList.toggle('off', !Sound.toggle()); };

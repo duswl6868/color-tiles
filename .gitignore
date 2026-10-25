@@ -10,6 +10,7 @@ nyangnyang-redesign.png
 assets/preview_1080x1920.png
 assets/generation-prompts.txt
 
-# 원작(gamesaien) 코드·역기획서 — 저작권이 원작자에게 있으므로 공개 레포에 올리지 않는다
+# 로컬 전용 문서·자료
 docs/original/
 docs/original-reverse-spec.md
+CLAUDE.local.md
